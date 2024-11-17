@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/ilyakaznacheev/cleanenv"
 	"log"
+	"os"
 	"time"
 )
 
@@ -36,6 +37,13 @@ func LoadConfig() *Config {
 	err := cleanenv.ReadConfig("config/local.yaml", &config)
 	if err != nil {
 		log.Fatalf("Failed to read config: %v", err)
+	}
+	if os.Getenv("ENV") == "production" {
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
+		config.HTTPServer.Addr = ":" + port
 	}
 	return &config
 }
