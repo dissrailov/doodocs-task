@@ -35,3 +35,37 @@ func (h *HandlerApp) AnalyzeArchive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func (h *HandlerApp) CreateArchive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to parse form: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	files := r.MultipartForm.File["files[]"]
+	if len(files) == 0 {
+		http.Error(w, fmt.Sprintf("No files provided"), http.StatusBadRequest)
+		return
+	}
+
+	archiveData, err := h.ArchiveService.CreateArchive(files)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to create archive: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.WriteHeader(http.StatusOK)
+
+	_, err = w.Write(archiveData)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to write response: %v", err), http.StatusInternalServerError)
+		return
+	}
+}

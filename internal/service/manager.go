@@ -8,6 +8,7 @@ import (
 
 type ArchiveServiceI interface {
 	AnalyzeArchive(file io.Reader, fileHeader *multipart.FileHeader) (models.ArchiveInfoResponse, error)
+	CreateArchive(files []*multipart.FileHeader) ([]byte, error)
 }
 
 type service struct{}
