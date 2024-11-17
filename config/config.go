@@ -33,7 +33,6 @@ func LoadConfig() *Config {
 	if err := cleanenv.ReadEnv(&config); err != nil {
 		log.Fatalf("Error to read env variables: %s", err)
 	}
-
 	err := cleanenv.ReadConfig("config/local.yaml", &config)
 	if err != nil {
 		log.Fatalf("Failed to read config: %v", err)
@@ -43,7 +42,7 @@ func LoadConfig() *Config {
 		if port == "" {
 			port = "8080"
 		}
-		config.HTTPServer.Addr = ":" + port
+		config.HTTPServer.Addr = "0.0.0.0:" + port
 	}
 	return &config
 }
