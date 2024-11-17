@@ -1,6 +1,8 @@
 package handlers
 
-import "doodocs-task/internal/service"
+import (
+	"doodocs-task/internal/service"
+)
 
 type HandlerApp struct {
 	ArchiveService service.ArchiveServiceI

@@ -10,6 +10,7 @@ func InitRoutes(h *HandlerApp) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/archive/information", h.AnalyzeArchive)
 	mux.HandleFunc("/api/archive/files", h.CreateArchive)
+	mux.HandleFunc("/api/mail/file", h.SendArchive)
 
 	return mux
 }

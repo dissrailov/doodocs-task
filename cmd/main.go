@@ -10,8 +10,7 @@ import (
 
 func main() {
 	cfg := config.LoadConfig()
-
-	service := service.NewService()
+	service := service.NewService(&cfg.SMTP)
 	handler := handlers.NewHandler(service)
 
 	router := handlers.InitRoutes(handler)

@@ -4,17 +4,27 @@ import (
 	"archive/zip"
 	"bytes"
 	"doodocs-task/internal/models"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"mime"
 	"mime/multipart"
 	"net/http"
+	"net/smtp"
+	"path/filepath"
+	"strings"
 )
 
-var validMimeTypes = map[string]bool{
+var validMimeTypesForCreate = map[string]bool{
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
 	"application/xml": true,
 	"image/jpeg":      true,
 	"image/png":       true,
+}
+var validMimeTypesForSend = map[string]bool{
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+	"application/pdf": true,
 }
 
 func (s *service) AnalyzeArchive(file io.Reader, fileHeader *multipart.FileHeader) (models.ArchiveInfoResponse, error) {
@@ -67,8 +77,8 @@ func (s *service) CreateArchive(files []*multipart.FileHeader) ([]byte, error) {
 		}
 		defer file.Close()
 
-		mimeType := getMimeType(file)
-		if !validMimeTypes[mimeType] {
+		mimeType := mime.TypeByExtension(filepath.Ext(fileHeader.Filename))
+		if !validMimeTypesForCreate[mimeType] {
 			return nil, fmt.Errorf("mime-type %s is not supported", mimeType)
 		}
 
@@ -92,14 +102,62 @@ func (s *service) CreateArchive(files []*multipart.FileHeader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func getMimeType(file multipart.File) string {
-	buf := make([]byte, 512)
-	_, err := file.Read(buf)
+func (s *service) SendEmail(subject string, body string, to []string, file multipart.File, fileHeader *multipart.FileHeader) error {
+	fileContent, err := fileHeader.Open()
 	if err != nil {
-		return "application/octet-stream"
+		return fmt.Errorf("failed to open file: %v", err)
 	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return "application/octet-stream"
+	defer fileContent.Close()
+
+	mimeType := mime.TypeByExtension(filepath.Ext(fileHeader.Filename))
+	if !validMimeTypesForSend[mimeType] {
+		return fmt.Errorf("mime-type %s is not supported", mimeType)
 	}
-	return http.DetectContentType(buf)
+
+	fileData, err := ioutil.ReadAll(fileContent)
+	if err != nil {
+		return fmt.Errorf("failed to read file content: %v", err)
+	}
+
+	message, err := s.buildEmailMessage(subject, body, to, fileHeader.Filename, mimeType, fileData)
+	if err != nil {
+		return fmt.Errorf("failed to build email message: %v", err)
+	}
+	if err := s.sendSMTPMessage(to, message); err != nil {
+		return fmt.Errorf("failed to send email message: %v", err)
+	}
+
+	return nil
+}
+
+func (s *service) buildEmailMessage(subject, body string, to []string, filename, mimeType string, fileData []byte) (string, error) {
+	boundary := "boundary-12345"
+
+	message := fmt.Sprintf("From: %s\r\n", s.SMTP.From)
+	message += fmt.Sprintf("To: %s\r\n", strings.Join(to, ","))
+	message += fmt.Sprintf("Subject: %s\r\n", subject)
+	message += "MIME-Version: 1.0\r\n"
+	message += fmt.Sprintf("Content-Type: multipart/mixed; boundary=%s\r\n", boundary)
+	message += "\r\n--" + boundary + "\r\n"
+	message += fmt.Sprintf("Content-Type: text/plain; charset=\"utf-8\"\r\n")
+	message += "Content-Transfer-Encoding: 7bit\r\n"
+	message += "\r\n" + body + "\r\n"
+	message += "\r\n--" + boundary + "\r\n"
+
+	attachment := fmt.Sprintf("Content-Type: %s; name=%s\r\n", mimeType, filename)
+	attachment += fmt.Sprintf("Content-Disposition: attachment; filename=%s\r\n", filename)
+	attachment += "Content-Transfer-Encoding: base64\r\n"
+	attachment += "\r\n"
+	attachment += base64.StdEncoding.EncodeToString(fileData)
+	attachment += "\r\n--" + boundary + "--\r\n"
+
+	message += attachment
+
+	return message, nil
+}
+
+func (s *service) sendSMTPMessage(to []string, message string) error {
+	auth := smtp.PlainAuth("", s.SMTP.User, s.SMTP.Password, s.SMTP.Host)
+	err := smtp.SendMail(fmt.Sprintf("%s:%d", s.SMTP.Host, s.SMTP.Port), auth, s.SMTP.From, to, []byte(message))
+	return err
 }
