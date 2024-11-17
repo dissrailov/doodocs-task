@@ -11,6 +11,7 @@ func (h *HandlerApp) AnalyzeArchive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 		return
 	}
+	err := r.ParseMultipartForm(10 << 20)
 
 	file, fileHeader, err := r.FormFile("file")
 	if err != nil {
