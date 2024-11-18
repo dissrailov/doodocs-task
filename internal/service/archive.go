@@ -34,6 +34,11 @@ func (s *service) AnalyzeArchive(file io.Reader, fileHeader *multipart.FileHeade
 		return models.ArchiveInfoResponse{}, fmt.Errorf("failed to read into memory: %v", err)
 	}
 
+	mimeType := mime.TypeByExtension(filepath.Ext(fileHeader.Filename))
+	if mimeType != "application/zip" {
+		return models.ArchiveInfoResponse{}, fmt.Errorf("unsupported file type: %s", mimeType)
+	}
+
 	archive, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 	if err != nil {
 		return models.ArchiveInfoResponse{}, fmt.Errorf("failed to open archive: %v", err)
